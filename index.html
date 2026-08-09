@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>台股全市場模擬器</title>
+<style>
+:root{
+  --bg:#0b1020;--panel:#121a2b;--panel2:#182235;--text:#eef3ff;--muted:#93a4c3;
+  --line:#27344f;--accent:#6ea8fe;--up:#ff6b6b;--down:#64d98b;--warn:#ffd166;
+}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}
+button,input,select{font:inherit}
+.app{max-width:1200px;margin:auto;padding:18px}.top{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+h1{font-size:22px;margin:0}.sub{color:var(--muted);font-size:14px;margin-top:5px}
+.badge{border:1px solid var(--line);padding:6px 9px;border-radius:999px;color:var(--muted);font-size:13px}
+.grid{display:grid;gap:12px}.metrics{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}
+.metric b{display:block;font-size:22px;margin-top:5px}.muted{color:var(--muted)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.tabs button,.btn{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:11px;padding:9px 12px;cursor:pointer}
+.tabs button.active,.btn.primary{background:var(--accent);color:#08111f;border-color:var(--accent);font-weight:700}
+.tab{display:none}.tab.active{display:block}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.field{flex:1;min-width:150px}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:5px}
+input,select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;min-width:760px}th,td{padding:10px;border-bottom:1px solid var(--line);text-align:right;font-size:14px;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:var(--muted);position:sticky;top:0;background:var(--panel2)}
+.up{color:var(--up)}.down{color:var(--down)}.status{margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.stock-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.stock{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}.stock .price{font-size:22px;font-weight:700;margin-top:8px}
+.small{font-size:12px}.actions{display:flex;gap:8px;margin-top:9px}.actions button{flex:1}
+.pagination{display:flex;justify-content:center;gap:8px;align-items:center;margin-top:12px}
+.notice{color:var(--warn)}.danger{color:var(--up)}.ok{color:var(--down)}
+@media(max-width:600px){.app{padding:12px}.metric b{font-size:19px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div>
+      <h1>📈 台股全市場模擬器</h1>
+      <div class="sub">上市＋上櫃公司｜官方資料｜100% 模擬幣</div>
+    </div>
+    <div class="badge" id="dataStamp">尚未載入行情</div>
+  </div>
+
+  <div class="grid metrics">
+    <div class="card metric"><span class="muted">總資產</span><b id="mAsset">$1,000,000</b></div>
+    <div class="card metric"><span class="muted">可用現金</span><b id="mCash">$1,000,000</b></div>
+    <div class="card metric"><span class="muted">持股市值</span><b id="mStock">$0</b></div>
+    <div class="card metric"><span class="muted">未實現損益</span><b id="mUnreal">$0</b></div>
+    <div class="card metric"><span class="muted">已實現損益</span><b id="mRealized">$0</b></div>
+  </div>
+
+  <div class="status" id="status">正在準備載入全部上市、上櫃公司資料…</div>
+
+  <div class="tabs">
+    <button class="active" data-tab="market">全市場</button>
+    <button data-tab="order">模擬下單</button>
+    <button data-tab="portfolio">庫存</button>
+    <button data-tab="pending">掛單</button>
+    <button data-tab="history">成交紀錄</button>
+    <button data-tab="settings">設定</button>
+  </div>
+
+  <section id="market" class="tab active">
+    <div class="card">
+      <div class="row">
+        <div class="field"><label>搜尋代號／公司名稱</label><input id="search" placeholder="例如 2330、台積電、5274"></div>
+        <div class="field"><label>市場</label><select id="marketFilter"><option value="">全部</option><option value="上市">上市</option><option value="上櫃">上櫃</option></select></div>
+        <div class="field"><label>每頁</label><select id="pageSize"><option>50</option><option>100</option><option>200</option></select></div>
+        <button class="btn" id="reloadBtn">更新官方資料</button>
+      </div>
+      <div class="sub" style="margin:12px 0" id="countText">載入中…</div>
+      <div id="marketList" class="grid stock-grid"></div>
+      <div class="pagination"><button class="btn" id="prevPage">上一頁</button><span id="pageInfo">1 / 1</span><button class="btn" id="nextPage">下一頁</button></div>
+    </div>
+  </section>
+
+  <section id="order" class="tab">
+    <div class="card">
+      <div class="row">
+        <div class="field"><label>股票代號</label><input id="orderCode" placeholder="輸入代號，例如 2330"></div>
+        <div class="field"><label>方向</label><select id="side"><option value="buy">買進</option><option value="sell">賣出</option></select></div>
+        <div class="field"><label>委託</label><select id="type"><option value="market">市價模擬</option><option value="limit">限價</option></select></div>
+        <div class="field"><label>單位</label><select id="unit"><option value="share">股</option><option value="lot">張（1000股）</option></select></div>
+        <div class="field"><label>數量</label><input id="qty" type="number" min="1" value="1"></div>
+        <div class="field"><label>限價</label><input id="limit" type="number" step="0.01" disabled></div>
+      </div>
+      <div class="status" id="orderPreview">請選擇股票。</div>
+      <button class="btn primary" id="submitOrder">送出模擬委託</button>
+    </div>
+  </section>
+
+  <section id="portfolio" class="tab"><div class="card"><div class="table-wrap"><table><thead><tr><th>股票</th><th>市場</th><th>股數</th><th>均價</th><th>現價</th><th>市值</th><th>未實現損益</th></tr></thead><tbody id="portfolioBody"></tbody></table></div></div></section>
+  <section id="pending" class="tab"><div class="card"><button class="btn" id="matchOrders">重新撮合掛單</button><div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>單號</th><th>股票</th><th>方向</th><th>股數</th><th>限價</th><th>操作</th></tr></thead><tbody id="pendingBody"></tbody></table></div></div></section>
+  <section id="history" class="tab"><div class="card"><div class="table-wrap"><table><thead><tr><th>時間</th><th>股票</th><th>方向</th><th>股數</th><th>成交價</th><th>金額</th><th>費稅</th><th>已實現損益</th></tr></thead><tbody id="historyBody"></tbody></table></div></div></section>
+
+  <section id="settings" class="tab">
+    <div class="card">
+      <div class="row">
+        <div class="field"><label>初始模擬資金</label><input id="capital" type="number" value="1000000" min="10000" step="10000"></div>
+        <div class="field"><label>手續費率</label><input id="feeRate" type="number" value="0.001425" step="0.000001"></div>
+        <button class="btn danger" id="reset">重置帳戶</button>
+      </div>
+      <p class="sub">股票賣出證交稅預設 0.3%。ETF 稅率另有規定，但本頁「公司」模式只收錄上市／上櫃公司普通股，不把 ETF、權證混進公司清單。</p>
+    </div>
+  </section>
+</div>
+
+<script>
+const API = {
+  listedCompanies: 'https://openapi.twse.com.tw/v1/opendata/t187ap03_L',
+  otcCompanies: 'https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O',
+  listedPrices: 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
+  otcPrices: 'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes'
+};
+
+let companies = [];
+let priceMap = {};
+let page = 1;
+let cash = Number(localStorage.getItem('sim_cash') || 1000000);
+let initialCapital = Number(localStorage.getItem('sim_initial') || 1000000);
+let holdings = JSON.parse(localStorage.getItem('sim_holdings') || '{}');
+let pending = JSON.parse(localStorage.getItem('sim_pending') || '[]');
+let trades = JSON.parse(localStorage.getItem('sim_trades') || '[]');
+let realized = Number(localStorage.getItem('sim_realized') || 0);
+let orderSeq = Number(localStorage.getItem('sim_orderSeq') || 1);
+
+const $ = id => document.getElementById(id);
+const money = n => '$' + Math.round(n || 0).toLocaleString('zh-TW');
+const num = v => {
+  const x = parseFloat(String(v ?? '').replace(/,/g,'').replace(/[^\d.-]/g,''));
+  return Number.isFinite(x) ? x : null;
+};
+const pick = (obj, keys) => { for (const k of keys) if (obj && obj[k] != null && obj[k] !== '') return obj[k]; return ''; };
+
+function save(){
+  localStorage.setItem('sim_cash',cash); localStorage.setItem('sim_initial',initialCapital);
+  localStorage.setItem('sim_holdings',JSON.stringify(holdings)); localStorage.setItem('sim_pending',JSON.stringify(pending));
+  localStorage.setItem('sim_trades',JSON.stringify(trades)); localStorage.setItem('sim_realized',realized); localStorage.setItem('sim_orderSeq',orderSeq);
+}
+async function j(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(r.status+' '+r.statusText); return r.json(); }
+
+function normalizeCompanies(list, market){
+  return list.map(x=>{
+    const code=String(pick(x,['公司代號','SecuritiesCompanyCode','Code','公司代碼'])).trim();
+    const name=String(pick(x,['公司簡稱','公司名稱','CompanyName','SecuritiesCompanyName','Name'])).trim();
+    const industry=String(pick(x,['產業別','SecuritiesIndustryCode','Industry','產業類別'])).trim();
+    return {code,name,industry,market};
+  }).filter(x=>/^\d{4}$/.test(x.code) && x.name);
+}
+function normalizePrices(list, market){
+  const out={};
+  for(const x of list){
+    const code=String(pick(x,['Code','證券代號','SecuritiesCompanyCode','股票代號'])).trim();
+    if(!/^\d{4}$/.test(code)) continue;
+    const close=num(pick(x,['ClosingPrice','收盤價','Close','ClosePrice','收盤']));
+    const open=num(pick(x,['OpeningPrice','開盤價','Open','OpenPrice']));
+    const high=num(pick(x,['HighestPrice','最高價','High']));
+    const low=num(pick(x,['LowestPrice','最低價','Low']));
+    const change=num(pick(x,['Change','漲跌價差','ChangeAmount','漲跌']));
+    const date=String(pick(x,['Date','日期','TradeDate','資料日期'])).trim();
+    if(close!=null) out[code]={close,open,high,low,change,date,market};
+  }
+  return out;
+}
+
+async function loadAll(){
+  $('status').textContent='正在從 TWSE / TPEx 官方 OpenAPI 載入全市場公司與最新行情…';
+  try{
+    const [lc,oc,lp,op] = await Promise.all([
+      j(API.listedCompanies), j(API.otcCompanies), j(API.listedPrices), j(API.otcPrices)
+    ]);
+    const listed=normalizeCompanies(lc,'上市'), otc=normalizeCompanies(oc,'上櫃');
+    companies=[...listed,...otc].sort((a,b)=>a.code.localeCompare(b.code));
+    priceMap={...normalizePrices(lp,'上市'),...normalizePrices(op,'上櫃')};
+    const dates=[...new Set(Object.values(priceMap).map(x=>x.date).filter(Boolean))];
+    $('dataStamp').textContent = dates.length ? '行情：'+dates.slice(0,2).join(' / ') : '最新官方行情';
+    $('status').innerHTML=`<span class="ok">✅ 已載入 ${listed.length.toLocaleString()} 家上市公司＋${otc.length.toLocaleString()} 家上櫃公司，共 ${companies.length.toLocaleString()} 家。</span>`;
+    page=1; renderMarket(); renderAll();
+  }catch(e){
+    console.error(e);
+    $('status').innerHTML='<span class="danger">❌ 官方 API 載入失敗。若你是直接用檔案方式開啟，瀏覽器可能擋跨網域請求。可改用 Chrome/Safari 開啟，或用本機 HTTP server 啟動此 HTML。錯誤：'+e.message+'</span>';
+  }
+}
+
+function filtered(){
+  const q=$('search').value.trim().toLowerCase(), m=$('marketFilter').value;
+  return companies.filter(c=>(!m||c.market===m)&&(!q||c.code.includes(q)||c.name.toLowerCase().includes(q)||c.industry.toLowerCase().includes(q)));
+}
+function renderMarket(){
+  const arr=filtered(), ps=Number($('pageSize').value), pages=Math.max(1,Math.ceil(arr.length/ps)); if(page>pages)page=pages;
+  const slice=arr.slice((page-1)*ps,page*ps);
+  $('countText').textContent=`符合 ${arr.length.toLocaleString()} 家｜第 ${page} / ${pages} 頁`;
+  $('pageInfo').textContent=`${page} / ${pages}`;
+  $('marketList').innerHTML=slice.map(c=>{
+    const p=priceMap[c.code]; const close=p?.close; const change=p?.change;
+    return `<div class="stock">
+      <div><b>${c.code} ${c.name}</b><div class="sub">${c.market}${c.industry?'｜產業 '+c.industry:''}</div></div>
+      <div class="price">${close!=null?'$'+close.toLocaleString('zh-TW'):'尚無行情'}</div>
+      <div class="${change>0?'up':change<0?'down':'muted'} small">${change!=null?((change>0?'+':'')+change):'－'}</div>
+      <div class="actions"><button class="btn quick" data-code="${c.code}">下單</button></div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.quick').forEach(b=>b.onclick=()=>{ $('orderCode').value=b.dataset.code; openTab('order'); preview(); });
+}
+function company(code){return companies.find(c=>c.code===code)}
+function shares(){return Math.max(1,Number($('qty').value)||1)*($('unit').value==='lot'?1000:1)}
+function fee(amount){return Math.round(amount*(Number($('feeRate').value)||0.001425))}
+function preview(){
+  const code=$('orderCode').value.trim(), c=company(code), p=priceMap[code], sh=shares(), isLimit=$('type').value==='limit';
+  $('limit').disabled=!isLimit;
+  if(!c){$('orderPreview').textContent='找不到此上市／上櫃公司代號。';return}
+  if(!p?.close){$('orderPreview').textContent=`${code} ${c.name}：目前沒有可用行情。`;return}
+  if(isLimit&&!$('limit').value)$('limit').value=p.close;
+  const px=isLimit?Number($('limit').value)||p.close:p.close, amt=px*sh, f=fee(amt);
+  $('orderPreview').innerHTML=`<b>${code} ${c.name}</b>｜${c.market}<br>現價 ${money(p.close)}｜${sh.toLocaleString()} 股｜預估金額 ${money(amt)}｜手續費約 ${money(f)}`;
+}
+function canFill(o){const p=priceMap[o.code]?.close;if(p==null)return false;return o.type==='market'||(o.side==='buy'&&o.limit>=p)||(o.side==='sell'&&o.limit<=p)}
+function execute(o){
+  const c=company(o.code), p=priceMap[o.code]?.close;if(!c||p==null)return {ok:false,msg:'無行情'};
+  const amount=p*o.shares, f=fee(amount), tax=o.side==='sell'?Math.round(amount*0.003):0;
+  if(o.side==='buy'){
+    const total=amount+f;if(total>cash)return {ok:false,msg:'模擬幣不足'};
+    const h=holdings[o.code]||{shares:0,avg:0,name:c.name,market:c.market};
+    const newShares=h.shares+o.shares; h.avg=(h.avg*h.shares+total)/newShares;h.shares=newShares;holdings[o.code]=h;cash-=total;
+    trades.push({...o,name:c.name,price:p,amount,fee:f,tax:0,pnl:0,time:new Date().toLocaleString('zh-TW')});
+  }else{
+    const h=holdings[o.code];if(!h||h.shares<o.shares)return {ok:false,msg:'持股不足'};
+    const pnl=(p-h.avg)*o.shares-f-tax; realized+=pnl; cash+=amount-f-tax; h.shares-=o.shares;if(h.shares===0)delete holdings[o.code];
+    trades.push({...o,name:c.name,price:p,amount,fee:f,tax,pnl,time:new Date().toLocaleString('zh-TW')});
+  }
+  save();renderAll();return {ok:true,msg:`成交 ${o.code} ${o.shares.toLocaleString()} 股 @ ${p}`}
+}
+function submit(){
+  const code=$('orderCode').value.trim(), c=company(code), p=priceMap[code]; if(!c||!p?.close){$('orderPreview').textContent='無法下單：公司或行情不存在。';return}
+  const o={id:orderSeq++,code,side:$('side').value,type:$('type').value,shares:shares(),limit:Number($('limit').value)||0};
+  if(o.type==='limit'&&o.limit<=0){$('orderPreview').textContent='請輸入限價。';return}
+  if(canFill(o)){const r=execute(o);$('orderPreview').textContent=(r.ok?'✅ ':'❌ ')+r.msg}else{pending.push(o);save();renderPending();$('orderPreview').textContent=`🕒 已掛單 #${o.id}`}
+}
+function renderSummary(){
+  let stock=0,unreal=0; for(const [code,h] of Object.entries(holdings)){const p=priceMap[code]?.close||h.avg;stock+=p*h.shares;unreal+=(p-h.avg)*h.shares}
+  $('mCash').textContent=money(cash);$('mStock').textContent=money(stock);$('mAsset').textContent=money(cash+stock);$('mUnreal').textContent=(unreal>=0?'+':'')+money(unreal);$('mRealized').textContent=(realized>=0?'+':'')+money(realized);
+}
+function renderPortfolio(){
+  $('portfolioBody').innerHTML=Object.entries(holdings).map(([code,h])=>{const p=priceMap[code]?.close||h.avg,pnl=(p-h.avg)*h.shares;return `<tr><td>${code} ${h.name}</td><td>${h.market}</td><td>${h.shares.toLocaleString()}</td><td>${h.avg.toFixed(2)}</td><td>${p.toFixed(2)}</td><td>${money(p*h.shares)}</td><td class="${pnl>=0?'up':'down'}">${pnl>=0?'+':''}${money(pnl)}</td></tr>`}).join('')||'<tr><td colspan="7">尚無持股</td></tr>';
+}
+function renderPending(){
+  $('pendingBody').innerHTML=pending.map(o=>`<tr><td>#${o.id}</td><td>${o.code}</td><td>${o.side==='buy'?'買':'賣'}</td><td>${o.shares.toLocaleString()}</td><td>${o.limit||'市價'}</td><td><button class="btn cancel" data-id="${o.id}">取消</button></td></tr>`).join('')||'<tr><td colspan="6">沒有掛單</td></tr>';
+  document.querySelectorAll('.cancel').forEach(b=>b.onclick=()=>{pending=pending.filter(o=>o.id!==Number(b.dataset.id));save();renderPending()});
+}
+function renderHistory(){
+  $('historyBody').innerHTML=[...trades].reverse().map(t=>`<tr><td>${t.time}</td><td>${t.code} ${t.name}</td><td>${t.side==='buy'?'買進':'賣出'}</td><td>${t.shares.toLocaleString()}</td><td>${t.price}</td><td>${money(t.amount)}</td><td>${money(t.fee+t.tax)}</td><td class="${t.pnl>=0?'up':'down'}">${t.pnl?(t.pnl>=0?'+':'')+money(t.pnl):'－'}</td></tr>`).join('')||'<tr><td colspan="8">尚無成交</td></tr>';
+}
+function renderAll(){renderSummary();renderPortfolio();renderPending();renderHistory();preview()}
+function match(){
+  const left=[];let n=0;for(const o of pending){if(canFill(o)){const r=execute(o);if(r.ok)n++;else left.push(o)}else left.push(o)}pending=left;save();renderAll();$('status').textContent=`掛單撮合完成：成交 ${n} 筆。`;
+}
+function openTab(id){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');document.querySelector(`.tabs button[data-tab="${id}"]`).classList.add('active')}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>openTab(b.dataset.tab));
+$('search').oninput=()=>{page=1;renderMarket()};$('marketFilter').onchange=()=>{page=1;renderMarket()};$('pageSize').onchange=()=>{page=1;renderMarket()};
+$('prevPage').onclick=()=>{if(page>1){page--;renderMarket()}};$('nextPage').onclick=()=>{const pages=Math.ceil(filtered().length/Number($('pageSize').value));if(page<pages){page++;renderMarket()}};
+$('reloadBtn').onclick=loadAll;['orderCode','side','type','unit','qty','limit'].forEach(id=>$(id).addEventListener('input',preview));$('submitOrder').onclick=submit;$('matchOrders').onclick=match;
+$('reset').onclick=()=>{initialCapital=Math.max(10000,Number($('capital').value)||1000000);cash=initialCapital;holdings={};pending=[];trades=[];realized=0;orderSeq=1;save();renderAll();$('status').textContent='模擬帳戶已重置。'};
+$('capital').value=initialCapital;
+loadAll();
+</script>
+</body>
+</html>
